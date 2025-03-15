@@ -102,52 +102,14 @@
             background-color: #0056b3;
         }
 
-        /* Zoom bo‘limi (faqat telefonda ko‘rinadi) */
-        .zoom-bar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            background-color: #333;
-            padding: 10px;
-            display: none;
-            z-index: 1000;
-            text-align: center;
-        }
-
-        .zoom-bar button {
-            padding: 8px 15px;
-            margin: 0 5px;
-            background-color: #007bff;
-            border: none;
-            border-radius: 5px;
-            color: white;
-            cursor: pointer;
-        }
-
-        .zoom-bar button:hover {
-            background-color: #0056b3;
-        }
-
         @media (max-width: 768px) {
             .pencil-icon, .toolbar {
-                display: none;
-            }
-            .zoom-bar {
-                display: block;
-            }
-            #pdfViewer {
-                height: calc(100% - 50px);
-                margin-top: 50px;
+                display: none; /* Telefonda qalamcha va toolbar yashiriladi */
             }
         }
     </style>
 </head>
 <body>
-    <div class="zoom-bar" id="zoomBar">
-        <button id="zoomInBtn" title="Kattalashtirish"><i class="fas fa-plus"></i></button>
-        <button id="zoomOutBtn" title="Kichiklashtirish"><i class="fas fa-minus"></i></button>
-    </div>
     <div class="container">
         <div id="pdfViewer"></div>
         <div class="pencil-icon" id="pencilBtn">
@@ -188,31 +150,27 @@
         const widthSelect = document.getElementById('widthSelect');
         const backBtn = document.getElementById('backBtn');
         const clearBtn = document.getElementById('clearBtn');
-        const zoomInBtn = document.getElementById('zoomInBtn');
-        const zoomOutBtn = document.getElementById('zoomOutBtn');
         let highlightLayers = [];
         let drawingHistory = [];
         let isDragging = false;
         let initialX, initialY;
-        let currentScale = 1.5; // Dastlabki masshtab
-        let pdfDoc = null;
+        let currentScale = 1.5; // Dastlabki masshtab (sifatni yaxshilash uchun)
 
         // Mobil qurilma ekanligini aniqlash
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-        function loadPDF(scale = currentScale) {
+        function loadPDF() {
             pdfViewer.innerHTML = '';
             highlightLayers = [];
             drawingHistory = [];
 
             pdfjsLib.getDocument(pdfUrl).promise.then(pdf => {
-                pdfDoc = pdf;
                 for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
                     pdf.getPage(pageNum).then(page => {
                         const canvas = document.createElement('canvas');
                         const context = canvas.getContext('2d');
                         const baseViewport = page.getViewport({ scale: 1 });
-                        const viewport = page.getViewport({ scale: scale * (window.innerWidth / baseViewport.width) });
+                        const viewport = page.getViewport({ scale: currentScale * (window.innerWidth / baseViewport.width) });
 
                         canvas.width = viewport.width * window.devicePixelRatio;
                         canvas.height = viewport.height * window.devicePixelRatio;
@@ -238,7 +196,7 @@
                             highlightLayers.push(highlightLayer);
 
                             if (!isMobile) {
-                                addDrawingFunctionality(highlightLayer);
+                                addDrawingFunctionality(highlightLayer); // Chizish faqat kompyuterda
                             }
                         });
                     });
@@ -356,23 +314,6 @@
             }
         });
 
-        // Zoom funksiyalari
-        function setupZoom() {
-            zoomInBtn.addEventListener('click', () => {
-                currentScale += 0.2;
-                if (currentScale > 3.0) currentScale = 3.0;
-                loadPDF(currentScale);
-                console.log("Kattalashtirildi:", currentScale);
-            });
-
-            zoomOutBtn.addEventListener('click', () => {
-                currentScale -= 0.2;
-                if (currentScale < 0.5) currentScale = 0.5;
-                loadPDF(currentScale);
-                console.log("Kichiklashtirildi:", currentScale);
-            });
-        }
-
         backBtn.addEventListener('click', () => {
             if (drawingHistory.length > 0) {
                 drawingHistory.pop();
@@ -405,9 +346,8 @@
             });
         }
 
-        // Dastlabki yuklash va zoom sozlamalari
+        // Dastlabki yuklash
         loadPDF();
-        setupZoom();
 
         document.addEventListener('contextmenu', (e) => e.preventDefault());
         document.addEventListener('keydown', (e) => {
@@ -419,7 +359,6 @@
             highlightLayers = [];
             drawingHistory = [];
             loadPDF();
-            setupZoom(); // Resize paytida zoom tugmalarini qayta bog‘lash
         });
     </script>
 </body>
