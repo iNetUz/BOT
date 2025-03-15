@@ -36,9 +36,9 @@
         }
 
         .pencil-icon {
-            position: fixed; /* Ekranga sobit */
-            top: 50%; /* Dastlabki joylashuv */
-            right: 20px; /* O‘ngdan 20px masofa */
+            position: fixed;
+            top: 50%;
+            right: 20px;
             background-color: #007bff;
             color: white;
             padding: 12px;
@@ -148,8 +148,7 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
-        const pdfUrl = 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf'; // Test PDF
-        // Sizning URL: 'https://cl3530.clouduz.ru/task2.pdf'
+        const pdfUrl = './mypdf.pdf'; // Mahalliy PDF fayl yo‘li
 
         const pdfViewer = document.getElementById('pdfViewer');
         const pencilBtn = document.getElementById('pencilBtn');
@@ -205,14 +204,17 @@
             let lastX = 0;
             let lastY = 0;
 
+            // Sichqoncha hodisalari (kompyuter uchun)
             canvas.addEventListener('mousedown', startDrawing);
             canvas.addEventListener('mousemove', draw);
             canvas.addEventListener('mouseup', stopDrawing);
             canvas.addEventListener('mouseout', stopDrawing);
 
-            canvas.addEventListener('touchstart', startDrawing);
-            canvas.addEventListener('touchmove', draw);
-            canvas.addEventListener('touchend', stopDrawing);
+            // Sensorli hodisalar (telefon uchun)
+            canvas.addEventListener('touchstart', startDrawing, { passive: false });
+            canvas.addEventListener('touchmove', draw, { passive: false });
+            canvas.addEventListener('touchend', stopDrawing, { passive: false });
+            canvas.addEventListener('touchcancel', stopDrawing, { passive: false });
 
             function startDrawing(e) {
                 if (!toolbar.classList.contains('open')) return;
@@ -220,6 +222,7 @@
                 const rect = canvas.getBoundingClientRect();
                 const pos = getPosition(e);
                 [lastX, lastY] = [pos.x - rect.left, pos.y - rect.top];
+                console.log("Chizish boshlandi:", { x: lastX, y: lastY });
                 e.preventDefault();
             }
 
@@ -240,12 +243,24 @@
 
                 drawingHistory.push({ canvas, start: [lastX, lastY], end: [x, y], color: colorSelect.value, width: widthSelect.value });
                 [lastX, lastY] = [x, y];
+                console.log("Chizish davom etmoqda:", { x, y });
                 e.preventDefault();
             }
 
             function stopDrawing() {
+                if (isDrawing) {
+                    console.log("Chizish tugadi");
+                }
                 isDrawing = false;
             }
+        }
+
+        // Pozitsiyani aniqlash funksiyasi
+        function getPosition(e) {
+            if (e.touches && e.touches.length > 0) {
+                return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            }
+            return { x: e.clientX, y: e.clientY };
         }
 
         // Sudrash funksiyasi
@@ -253,9 +268,9 @@
         document.addEventListener('mousemove', drag);
         document.addEventListener('mouseup', stopDragging);
 
-        pencilBtn.addEventListener('touchstart', startDragging);
+        pencilBtn.addEventListener('touchstart', startDragging, { passive: false });
         document.addEventListener('touchmove', drag, { passive: false });
-        document.addEventListener('touchend', stopDragging);
+        document.addEventListener('touchend', stopDragging, { passive: false });
 
         function startDragging(e) {
             isDragging = true;
@@ -273,7 +288,6 @@
             let newLeft = pos.x - initialX;
             let newTop = pos.y - initialY;
 
-            // Chegaralarni tekshirish (ekran chegaralari)
             newLeft = Math.max(0, Math.min(newLeft, window.innerWidth - pencilBtn.offsetWidth));
             newTop = Math.max(0, Math.min(newTop, window.innerHeight - pencilBtn.offsetHeight));
 
@@ -289,11 +303,6 @@
                 console.log("Sudrash tugadi");
             }
             isDragging = false;
-        }
-
-        function getPosition(e) {
-            if (e.touches) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
-            return { x: e.clientX, y: e.clientY };
         }
 
         // Toolbar ochish/yopish
