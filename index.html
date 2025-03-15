@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>PDF Viewer</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
@@ -27,6 +27,7 @@
             width: 100%;
             overflow-y: auto;
             position: relative;
+            touch-action: pinch-zoom; /* Ikkita barmoq bilan yaqinlashtirishga ruxsat */
         }
 
         canvas {
@@ -141,10 +142,6 @@
                     <option value="10">10px</option>
                 </select>
             </div>
-            <div class="zoom-controls">
-                <button id="zoomInBtn" title="Kattalashtirish"><i class="fas fa-plus"></i></button>
-                <button id="zoomOutBtn" title="Kichiklashtirish"><i class="fas fa-minus"></i></button>
-            </div>
             <button id="backBtn" title="Oxirgi chizilganni o‘chirish"><i class="fas fa-undo"></i></button>
             <button id="clearBtn">Hammasini o‘chirish</button>
         </div>
@@ -162,17 +159,23 @@
         const widthSelect = document.getElementById('widthSelect');
         const backBtn = document.getElementById('backBtn');
         const clearBtn = document.getElementById('clearBtn');
-        const zoomInBtn = document.getElementById('zoomInBtn');
-        const zoomOutBtn = document.getElementById('zoomOutBtn');
         let highlightLayers = [];
         let drawingHistory = [];
         let isDragging = false;
         let initialX, initialY;
-        let currentScale = 1.0; // Dastlabki masshtab
-        let pdfDoc = null; // PDF hujjatini saqlash uchun
+        let currentScale = 1.0;
+        let pdfDoc = null;
+
+        // Mobil qurilma ekanligini aniqlash
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+        if (isMobile) {
+            // Agar mobil bo‘lsa, pinch-to-zoom brauzer orqali ishlaydi
+            console.log("Mobil qurilma aniqlandi, pinch-to-zoom ishlatiladi");
+        }
 
         function loadPDF(scale = currentScale) {
-            pdfViewer.innerHTML = ''; // Avvalgi kontentni tozalash
+            pdfViewer.innerHTML = '';
             highlightLayers = [];
             drawingHistory = [];
 
@@ -202,7 +205,9 @@
                             pdfViewer.appendChild(highlightLayer);
                             highlightLayers.push(highlightLayer);
 
-                            addDrawingFunctionality(highlightLayer);
+                            if (!isMobile) {
+                                addDrawingFunctionality(highlightLayer); // Chizish faqat kompyuterda
+                            }
                         });
                     });
                 }
@@ -222,11 +227,6 @@
             canvas.addEventListener('mousemove', draw);
             canvas.addEventListener('mouseup', stopDrawing);
             canvas.addEventListener('mouseout', stopDrawing);
-
-            canvas.addEventListener('touchstart', startDrawing, { passive: false });
-            canvas.addEventListener('touchmove', draw, { passive: false });
-            canvas.addEventListener('touchend', stopDrawing, { passive: false });
-            canvas.addEventListener('touchcancel', stopDrawing, { passive: false });
 
             function startDrawing(e) {
                 if (!toolbar.classList.contains('open')) return;
@@ -324,21 +324,6 @@
             }
         });
 
-        // Zoom funksiyalari
-        zoomInBtn.addEventListener('click', () => {
-            currentScale += 0.2; // Har bosishda 20% kattalashtirish
-            if (currentScale > 3.0) currentScale = 3.0; // Maksimum 300%
-            loadPDF(currentScale);
-            console.log("Kattalashtirildi:", currentScale);
-        });
-
-        zoomOutBtn.addEventListener('click', () => {
-            currentScale -= 0.2; // Har bosishda 20% kichiklashtirish
-            if (currentScale < 0.5) currentScale = 0.5; // Minimum 50%
-            loadPDF(currentScale);
-            console.log("Kichiklashtirildi:", currentScale);
-        });
-
         backBtn.addEventListener('click', () => {
             if (drawingHistory.length > 0) {
                 drawingHistory.pop();
@@ -369,6 +354,13 @@
                 context.lineCap = 'round';
                 context.stroke();
             });
+        }
+
+        // Agar mobil qurilma bo‘lsa, qalamchani yashirish
+        if (isMobile) {
+            pencilBtn.style.display = 'none';
+            toolbar.style.display = 'none';
+            console.log("Mobil qurilmada qalamcha va toolbar yashirildi");
         }
 
         loadPDF();
