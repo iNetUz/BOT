@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Viewer</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: #fff;
+        }
+
+        .container {
+            height: 100vh;
+            width: 100vw;
+            position: relative;
+        }
+
+        #pdfViewer {
+            height: 100%;
+            width: 100%;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        canvas {
+            display: block;
+            width: 100% !important;
+            height: auto !important;
+        }
+
+        .pencil-icon {
+            position: fixed; /* Ekranga sobit */
+            top: 50%; /* Dastlabki joylashuv */
+            right: 20px; /* O‘ngdan 20px masofa */
+            background-color: #007bff;
+            color: white;
+            padding: 12px;
+            border-radius: 50%;
+            cursor: move;
+            font-size: 20px;
+            z-index: 1000;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+        }
+
+        .pencil-icon:hover {
+            background-color: #0056b3;
+        }
+
+        .toolbar {
+            position: fixed;
+            top: 50%;
+            right: -250px;
+            transform: translateY(-50%);
+            background-color: #333;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            transition: right 0.3s ease;
+            z-index: 999;
+        }
+
+        .toolbar.open {
+            right: 60px;
+        }
+
+        .toolbar div {
+            margin-bottom: 10px;
+        }
+
+        .toolbar label {
+            margin-right: 5px;
+            color: #fff;
+        }
+
+        .toolbar select, .toolbar button {
+            padding: 5px;
+            border-radius: 3px;
+            border: 1px solid #555;
+            background-color: #444;
+            color: #fff;
+        }
+
+        .toolbar button {
+            background-color: #007bff;
+            border: none;
+            cursor: pointer;
+        }
+
+        .toolbar button:hover {
+            background-color: #0056b3;
+        }
+
+        @media (max-width: 768px) {
+            .pencil-icon {
+                padding: 10px;
+                font-size: 18px;
+            }
+            .toolbar {
+                padding: 10px;
+                right: -200px;
+            }
+            .toolbar.open {
+                right: 50px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="pdfViewer"></div>
+        <div class="pencil-icon" id="pencilBtn">
+            <i class="fas fa-pencil-alt"></i>
+        </div>
+        <div class="toolbar" id="toolbar">
+            <div class="color-picker">
+                <label>Rang:</label>
+                <select id="colorSelect">
+                    <option value="red">Qizil</option>
+                    <option value="yellow">Sariq</option>
+                    <option value="blue">Ko‘k</option>
+                    <option value="green">Yashil</option>
+                </select>
+            </div>
+            <div class="width-picker">
+                <label>Qalinlik:</label>
+                <select id="widthSelect">
+                    <option value="2">2px</option>
+                    <option value="5">5px</option>
+                    <option value="10">10px</option>
+                </select>
+            </div>
+            <button id="backBtn" title="Oxirgi chizilganni o‘chirish"><i class="fas fa-undo"></i></button>
+            <button id="clearBtn">Hammasini o‘chirish</button>
+        </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+        const pdfUrl = 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf'; // Test PDF
+        // Sizning URL: 'https://cl3530.clouduz.ru/task2.pdf'
+
+        const pdfViewer = document.getElementById('pdfViewer');
+        const pencilBtn = document.getElementById('pencilBtn');
+        const toolbar = document.getElementById('toolbar');
+        const colorSelect = document.getElementById('colorSelect');
+        const widthSelect = document.getElementById('widthSelect');
+        const backBtn = document.getElementById('backBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        let highlightLayers = [];
+        let drawingHistory = [];
+        let isDragging = false;
+        let initialX, initialY;
+
+        function loadPDF() {
+            pdfjsLib.getDocument(pdfUrl).promise.then(pdf => {
+                for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                    pdf.getPage(pageNum).then(page => {
+                        const canvas = document.createElement('canvas');
+                        const context = canvas.getContext('2d');
+                        const viewport = page.getViewport({ scale: window.innerWidth / page.getViewport({ scale: 1 }).width });
+
+                        canvas.width = viewport.width;
+                        canvas.height = viewport.height;
+
+                        page.render({
+                            canvasContext: context,
+                            viewport: viewport
+                        }).promise.then(() => {
+                            pdfViewer.appendChild(canvas);
+
+                            const highlightLayer = document.createElement('canvas');
+                            highlightLayer.width = viewport.width;
+                            highlightLayer.height = viewport.height;
+                            highlightLayer.style.position = 'absolute';
+                            highlightLayer.style.top = `${canvas.offsetTop}px`;
+                            highlightLayer.style.left = '0';
+                            pdfViewer.appendChild(highlightLayer);
+                            highlightLayers.push(highlightLayer);
+
+                            addDrawingFunctionality(highlightLayer);
+                        });
+                    });
+                }
+            }).catch(error => {
+                console.error("PDF yuklashda xatolik:", error);
+                pdfViewer.innerHTML = `<p>PDF yuklashda xatolik: ${error.message}</p>`;
+            });
+        }
+
+        function addDrawingFunctionality(canvas) {
+            const context = canvas.getContext('2d');
+            let isDrawing = false;
+            let lastX = 0;
+            let lastY = 0;
+
+            canvas.addEventListener('mousedown', startDrawing);
+            canvas.addEventListener('mousemove', draw);
+            canvas.addEventListener('mouseup', stopDrawing);
+            canvas.addEventListener('mouseout', stopDrawing);
+
+            canvas.addEventListener('touchstart', startDrawing);
+            canvas.addEventListener('touchmove', draw);
+            canvas.addEventListener('touchend', stopDrawing);
+
+            function startDrawing(e) {
+                if (!toolbar.classList.contains('open')) return;
+                isDrawing = true;
+                const rect = canvas.getBoundingClientRect();
+                const pos = getPosition(e);
+                [lastX, lastY] = [pos.x - rect.left, pos.y - rect.top];
+                e.preventDefault();
+            }
+
+            function draw(e) {
+                if (!isDrawing) return;
+                const rect = canvas.getBoundingClientRect();
+                const pos = getPosition(e);
+                const x = pos.x - rect.left;
+                const y = pos.y - rect.top;
+
+                context.beginPath();
+                context.moveTo(lastX, lastY);
+                context.lineTo(x, y);
+                context.strokeStyle = colorSelect.value;
+                context.lineWidth = widthSelect.value;
+                context.lineCap = 'round';
+                context.stroke();
+
+                drawingHistory.push({ canvas, start: [lastX, lastY], end: [x, y], color: colorSelect.value, width: widthSelect.value });
+                [lastX, lastY] = [x, y];
+                e.preventDefault();
+            }
+
+            function stopDrawing() {
+                isDrawing = false;
+            }
+        }
+
+        // Sudrash funksiyasi
+        pencilBtn.addEventListener('mousedown', startDragging);
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('mouseup', stopDragging);
+
+        pencilBtn.addEventListener('touchstart', startDragging);
+        document.addEventListener('touchmove', drag, { passive: false });
+        document.addEventListener('touchend', stopDragging);
+
+        function startDragging(e) {
+            isDragging = true;
+            const pos = getPosition(e);
+            const rect = pencilBtn.getBoundingClientRect();
+            initialX = pos.x - rect.left;
+            initialY = pos.y - rect.top;
+            console.log("Sudrash boshlandi:", { x: pos.x, y: pos.y });
+            e.preventDefault();
+        }
+
+        function drag(e) {
+            if (!isDragging) return;
+            const pos = getPosition(e);
+            let newLeft = pos.x - initialX;
+            let newTop = pos.y - initialY;
+
+            // Chegaralarni tekshirish (ekran chegaralari)
+            newLeft = Math.max(0, Math.min(newLeft, window.innerWidth - pencilBtn.offsetWidth));
+            newTop = Math.max(0, Math.min(newTop, window.innerHeight - pencilBtn.offsetHeight));
+
+            pencilBtn.style.left = `${newLeft}px`;
+            pencilBtn.style.top = `${newTop}px`;
+            pencilBtn.style.right = 'auto';
+            console.log("Sudrash davom etmoqda:", { left: newLeft, top: newTop });
+            e.preventDefault();
+        }
+
+        function stopDragging() {
+            if (isDragging) {
+                console.log("Sudrash tugadi");
+            }
+            isDragging = false;
+        }
+
+        function getPosition(e) {
+            if (e.touches) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            return { x: e.clientX, y: e.clientY };
+        }
+
+        // Toolbar ochish/yopish
+        pencilBtn.addEventListener('click', (e) => {
+            if (!isDragging) {
+                toolbar.classList.toggle('open');
+                console.log("Toolbar holati:", toolbar.classList.contains('open') ? 'ochiq' : 'yopiq');
+            }
+        });
+
+        backBtn.addEventListener('click', () => {
+            if (drawingHistory.length > 0) {
+                drawingHistory.pop();
+                redrawAll();
+            }
+        });
+
+        clearBtn.addEventListener('click', () => {
+            drawingHistory = [];
+            highlightLayers.forEach(layer => {
+                const context = layer.getContext('2d');
+                context.clearRect(0, 0, layer.width, layer.height);
+            });
+        });
+
+        function redrawAll() {
+            highlightLayers.forEach(layer => {
+                const context = layer.getContext('2d');
+                context.clearRect(0, 0, layer.width, layer.height);
+            });
+            drawingHistory.forEach(draw => {
+                const context = draw.canvas.getContext('2d');
+                context.beginPath();
+                context.moveTo(draw.start[0], draw.start[1]);
+                context.lineTo(draw.end[0], draw.end[1]);
+                context.strokeStyle = draw.color;
+                context.lineWidth = draw.width;
+                context.lineCap = 'round';
+                context.stroke();
+            });
+        }
+
+        loadPDF();
+
+        document.addEventListener('contextmenu', (e) => e.preventDefault());
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && (e.key === 's' || e.key === 'p')) e.preventDefault();
+        });
+
+        window.addEventListener('resize', () => {
+            pdfViewer.innerHTML = '';
+            highlightLayers = [];
+            drawingHistory = [];
+            loadPDF();
+        });
+    </script>
+</body>
+</html>
