@@ -95,6 +95,7 @@
             background-color: #007bff;
             border: none;
             cursor: pointer;
+            margin-right: 5px;
         }
 
         .toolbar button:hover {
@@ -140,6 +141,10 @@
                     <option value="10">10px</option>
                 </select>
             </div>
+            <div class="zoom-controls">
+                <button id="zoomInBtn" title="Kattalashtirish"><i class="fas fa-plus"></i></button>
+                <button id="zoomOutBtn" title="Kichiklashtirish"><i class="fas fa-minus"></i></button>
+            </div>
             <button id="backBtn" title="Oxirgi chizilganni o‘chirish"><i class="fas fa-undo"></i></button>
             <button id="clearBtn">Hammasini o‘chirish</button>
         </div>
@@ -157,18 +162,27 @@
         const widthSelect = document.getElementById('widthSelect');
         const backBtn = document.getElementById('backBtn');
         const clearBtn = document.getElementById('clearBtn');
+        const zoomInBtn = document.getElementById('zoomInBtn');
+        const zoomOutBtn = document.getElementById('zoomOutBtn');
         let highlightLayers = [];
         let drawingHistory = [];
         let isDragging = false;
         let initialX, initialY;
+        let currentScale = 1.0; // Dastlabki masshtab
+        let pdfDoc = null; // PDF hujjatini saqlash uchun
 
-        function loadPDF() {
+        function loadPDF(scale = currentScale) {
+            pdfViewer.innerHTML = ''; // Avvalgi kontentni tozalash
+            highlightLayers = [];
+            drawingHistory = [];
+
             pdfjsLib.getDocument(pdfUrl).promise.then(pdf => {
+                pdfDoc = pdf;
                 for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
                     pdf.getPage(pageNum).then(page => {
                         const canvas = document.createElement('canvas');
                         const context = canvas.getContext('2d');
-                        const viewport = page.getViewport({ scale: window.innerWidth / page.getViewport({ scale: 1 }).width });
+                        const viewport = page.getViewport({ scale: scale * (window.innerWidth / page.getViewport({ scale: 1 }).width) });
 
                         canvas.width = viewport.width;
                         canvas.height = viewport.height;
@@ -204,13 +218,11 @@
             let lastX = 0;
             let lastY = 0;
 
-            // Sichqoncha hodisalari (kompyuter uchun)
             canvas.addEventListener('mousedown', startDrawing);
             canvas.addEventListener('mousemove', draw);
             canvas.addEventListener('mouseup', stopDrawing);
             canvas.addEventListener('mouseout', stopDrawing);
 
-            // Sensorli hodisalar (telefon uchun)
             canvas.addEventListener('touchstart', startDrawing, { passive: false });
             canvas.addEventListener('touchmove', draw, { passive: false });
             canvas.addEventListener('touchend', stopDrawing, { passive: false });
@@ -255,7 +267,6 @@
             }
         }
 
-        // Pozitsiyani aniqlash funksiyasi
         function getPosition(e) {
             if (e.touches && e.touches.length > 0) {
                 return { x: e.touches[0].clientX, y: e.touches[0].clientY };
@@ -311,6 +322,21 @@
                 toolbar.classList.toggle('open');
                 console.log("Toolbar holati:", toolbar.classList.contains('open') ? 'ochiq' : 'yopiq');
             }
+        });
+
+        // Zoom funksiyalari
+        zoomInBtn.addEventListener('click', () => {
+            currentScale += 0.2; // Har bosishda 20% kattalashtirish
+            if (currentScale > 3.0) currentScale = 3.0; // Maksimum 300%
+            loadPDF(currentScale);
+            console.log("Kattalashtirildi:", currentScale);
+        });
+
+        zoomOutBtn.addEventListener('click', () => {
+            currentScale -= 0.2; // Har bosishda 20% kichiklashtirish
+            if (currentScale < 0.5) currentScale = 0.5; // Minimum 50%
+            loadPDF(currentScale);
+            console.log("Kichiklashtirildi:", currentScale);
         });
 
         backBtn.addEventListener('click', () => {
